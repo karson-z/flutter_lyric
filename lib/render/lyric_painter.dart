@@ -57,6 +57,23 @@ class LyricPainter extends CustomPainter {
         Paint()..color = layout.style.selectedColor,
       );
     }
+
+    // Calculate scroll delta for staggered effect
+    double scrollDelta = 0.0;
+    if (switchState.previousIndex != -1 && switchState.activeIndex != -1) {
+       int prev = switchState.previousIndex;
+       int curr = switchState.activeIndex;
+       // Only apply staggered effect if index changed
+       if (prev < layout.metrics.length && prev != curr) {
+          // Approximate delta using previous line's height + gap
+          // We assume scrolling happens to align the new line.
+          // If curr > prev, we scrolled down (canvas content moves up), so lines below need to be pushed down (positive offset).
+          // If curr < prev, we scrolled up, lines below need to be pushed up (negative offset).
+          double h = layout.getLineHeight(true, prev); 
+          scrollDelta = (h + layout.style.lineGap) * (curr - prev).sign;
+       }
+    }
+
     var totalTranslateY = 0.0;
     canvas.translate(0, -scrollY);
     totalTranslateY -= scrollY;
@@ -65,6 +82,18 @@ class LyricPainter extends CustomPainter {
     for (var i = 0; i < layout.metrics.length; i++) {
       final isActive = i == playIndex;
       final lineHeight = layout.getLineHeight(isActive, i);
+      
+      // STAGGERED LOGIC
+      double staggeredOffsetY = 0.0;
+      if (i > playIndex && scrollDelta != 0.0 && switchState.animationValue < 1.0) {
+         double dist = (i - playIndex).toDouble();
+         double delay = dist * 0.08; 
+         double t = (switchState.animationValue - delay) * 2.0; 
+         t = t.clamp(0.0, 1.0);
+         t = Curves.easeOut.transform(t);
+         staggeredOffsetY = scrollDelta * (1 - t);
+      }
+
       totalTranslateY += lineHeight;
       //计算高亮
       if ((totalTranslateY + layout.style.lineGap / 2) >= selectionPosition &&
@@ -81,6 +110,11 @@ class LyricPainter extends CustomPainter {
         final lineRect = Rect.fromLTWH(0, totalTranslateY - lineHeight,
             size.width + layout.style.contentPadding.horizontal, lineHeight);
         showLineRects[i] = lineRect;
+        
+        // Apply staggered offset
+        canvas.save();
+        canvas.translate(0, staggeredOffsetY);
+        
         if (style.activeLineOnly && !isActive) {
         } else {
           drawLine(
@@ -91,6 +125,7 @@ class LyricPainter extends CustomPainter {
             selectedIndex == i,
           );
         }
+        canvas.restore();
       }
       totalTranslateY += layout.style.lineGap;
       if (_debugLyric) {
@@ -172,52 +207,6 @@ class LyricPainter extends CustomPainter {
     }
   }
 
-  double handleSwitchAnimation(
-    Canvas canvas,
-    LineMetrics metric,
-    int index,
-    LyricLineSwitchState switchState,
-    TextPainter painter,
-    Size size,
-  ) {
-    if (layout.style.enableSwitchAnimation != true) return 0;
-    double calcTranslateX(double contentWidth) {
-      var transX = 0.0;
-      if (layout.style.contentAlignment == CrossAxisAlignment.center) {
-        transX = contentWidth / 2;
-      } else if (layout.style.contentAlignment == CrossAxisAlignment.end) {
-        transX = contentWidth;
-      }
-      return transX;
-    }
-
-    final transX = calcTranslateX(painter.width);
-    if (index == switchState.enterIndex) {
-      final enterAnimationValue = switchState.enterAnimationValue;
-      final fromHeight = metric.height;
-      final toHeight = metric.activeHeight;
-      final transY = toHeight;
-      canvas.translate(transX, transY);
-      canvas.scale(
-          1 - ((toHeight - fromHeight) / toHeight) * (1 - enterAnimationValue));
-      canvas.translate(-transX, -transY);
-    }
-    // EXIT
-    if (index == switchState.exitIndex) {
-      final exitAnimationValue = switchState.exitAnimationValue;
-      final fromHeight = metric.activeHeight;
-      final toHeight = metric.height;
-      final transY = 0.0;
-      canvas.translate(transX, transY);
-      final scale =
-          ((fromHeight - toHeight) / fromHeight) * (1 - exitAnimationValue);
-      canvas.scale(1 + scale);
-      canvas.translate(-transX, -transY);
-      return toHeight * scale;
-    }
-    return 0;
-  }
-
   drawLine(
     Canvas canvas,
     LineMetrics metric,
@@ -253,8 +242,7 @@ class LyricPainter extends CustomPainter {
                 ? Colors.blue.withAlpha(50)
                 : Colors.red.withAlpha(50));
     }
-    final switchOffset = handleSwitchAnimation(
-        canvas, metric, index, switchState, painter, size);
+    
     painter.paint(
       canvas,
       Offset(0, 0),
@@ -265,12 +253,8 @@ class LyricPainter extends CustomPainter {
           highlightTotalWidth: metric.words?.isNotEmpty == true
               ? activeHighlightWidth
               : double.infinity);
-    } else if (index == switchState.exitIndex &&
-        switchState.exitAnimationValue < 1 &&
-        style.enableSwitchAnimation) {
-      drawHighlight(canvas, size, metric.metrics,
-          highlightTotalWidth: double.infinity);
-    }
+    } 
+    
     canvas.restore();
     final mainHeight = isActive ? metric.activeHeight : metric.height;
     if (metric.line.translation?.isNotEmpty == true) {
@@ -286,7 +270,7 @@ class LyricPainter extends CustomPainter {
       );
       canvas.save();
       canvas.translate(calcContentAliginOffset(tPainter.width, size.width), 0);
-      canvas.translate(0, switchOffset);
+      
       try {
         tPainter.paint(
           canvas,
@@ -296,7 +280,6 @@ class LyricPainter extends CustomPainter {
         // 避免系统字体变更触发 assert(debugSize == size);
       }
       tPainter.text = tOldSpan;
-      canvas.translate(0, -switchOffset);
       canvas.restore();
     }
   }

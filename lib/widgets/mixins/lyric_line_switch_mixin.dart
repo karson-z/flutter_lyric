@@ -5,106 +5,76 @@ import 'package:flutter_lyric/core/lyric_controller.dart';
 import 'package:flutter_lyric/widgets/mixins/lyric_layout_mixin.dart';
 
 class LyricLineSwitchState {
-  double exitAnimationValue = 0.0;
-  double enterAnimationValue = 0.0;
-  int exitIndex = -1;
-  int enterIndex = -1;
+  double animationValue = 0.0;
+  int activeIndex = -1;
+  int previousIndex = -1;
 
   LyricLineSwitchState({
-    required this.exitAnimationValue,
-    required this.enterAnimationValue,
-    required this.exitIndex,
-    required this.enterIndex,
+    required this.animationValue,
+    required this.activeIndex,
+    required this.previousIndex,
   });
 }
 
 mixin LyricLineSwitchMixin<T extends StatefulWidget>
     on State<T>, LyricLayoutMixin<T>, TickerProviderStateMixin<T> {
-  int _exitIndex = -1;
-  int _enterIndex = -1;
+  int _previousIndex = -1;
+  int _currentIndex = -1;
 
-  late final AnimationController _exitAnimationController;
-  late final AnimationController _enterAnimationController;
+  late final AnimationController _staggeredController;
 
   @override
   void initState() {
     super.initState();
-    controller.registerEvent(
-        LyricEvent.playSwitchAnimation, onPlaySwitchAnimation);
     controller.registerEvent(LyricEvent.reset, _reset);
-    _exitAnimationController = AnimationController(vsync: this);
-    _enterAnimationController = AnimationController(vsync: this);
-    _enterIndex = _exitIndex;
+    _staggeredController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400), // Base duration
+    );
+    _currentIndex = controller.activeIndexNotifiter.value;
     controller.activeIndexNotifiter.addListener(onActiveIndexChange);
   }
 
   _reset(_) {
-    _exitIndex = -1;
-    _enterIndex = -1;
-    _exitAnimationController.value = 1.0;
-    _enterAnimationController.value = 1.0;
-  }
-
-  void onPlaySwitchAnimation(_) {
-    _exitAnimationController.forward(from: 0);
-    _enterAnimationController.forward(from: 0);
+    _previousIndex = -1;
+    _currentIndex = -1;
+    _staggeredController.value = 1.0;
   }
 
   buildLineSwitch(
       Widget Function(BuildContext context, LyricLineSwitchState state)
           builder) {
-    final exitAnimation = CurvedAnimation(
-      parent: _exitAnimationController,
-      curve: style.switchExitCurve,
-    );
-    final enterAnimation = CurvedAnimation(
-      parent: _enterAnimationController,
-      curve: style.switchEnterCurve,
-    );
-
     return AnimatedBuilder(
-      animation: enterAnimation,
+      animation: _staggeredController,
       builder: (context, child) {
-        return AnimatedBuilder(
-            animation: exitAnimation,
-            builder: (context, child) {
-              return builder(
-                  context,
-                  LyricLineSwitchState(
-                    exitAnimationValue: exitAnimation.value,
-                    enterAnimationValue: enterAnimation.value,
-                    exitIndex: _exitIndex,
-                    enterIndex: _enterIndex,
-                  ));
-            });
+        return builder(
+            context,
+            LyricLineSwitchState(
+              animationValue: _staggeredController.value,
+              activeIndex: _currentIndex,
+              previousIndex: _previousIndex,
+            ));
       },
     );
   }
 
   onActiveIndexChange() {
-    _exitIndex = _enterIndex;
-    final old = _enterIndex;
-    _enterIndex = controller.activeIndexNotifiter.value;
-    if (_enterIndex != _exitIndex && old != -1) {
-      _exitAnimationController.reset();
-      _enterAnimationController.reset();
-      _exitAnimationController.duration = style.switchExitDuration;
-      _enterAnimationController.duration = style.switchEnterDuration;
-      scheduleMicrotask(() {
-        _exitAnimationController.forward(from: 0);
-        _enterAnimationController.forward(from: 0);
-      });
-    }
+    final newIndex = controller.activeIndexNotifiter.value;
+    if (newIndex == _currentIndex) return;
+
+    _previousIndex = _currentIndex;
+    _currentIndex = newIndex;
+
+    // Restart animation
+    _staggeredController.reset();
+    _staggeredController.forward();
   }
 
   @override
   void dispose() {
     controller.unregisterEvent(LyricEvent.reset, _reset);
-    _exitAnimationController.dispose();
-    _enterAnimationController.dispose();
+    _staggeredController.dispose();
     controller.activeIndexNotifiter.removeListener(onActiveIndexChange);
-    controller.unregisterEvent(
-        LyricEvent.playSwitchAnimation, onPlaySwitchAnimation);
     super.dispose();
   }
 }

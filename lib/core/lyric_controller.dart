@@ -85,10 +85,11 @@ class LyricController {
     _eventCallbacks[event]?.remove(callback);
   }
 
-  void loadLyric(String lyric, {String? translationLyric}) {
+  void loadLyric(String lyric, {String? translationLyric,List<LyricParse>? customParses}) {
     final lyricModel = LyricParse.parse(
       lyric,
       translationLyric: translationLyric,
+      parsers: customParses
     );
     loadLyricModel(lyricModel);
   }
