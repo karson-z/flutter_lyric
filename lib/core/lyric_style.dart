@@ -109,6 +109,12 @@ class LyricStyle {
   /// 是否启用切换动画 / Enable switch animation
   final bool enableSwitchAnimation;
 
+  /// 启用缩放动画 / Enable scale animation
+  final bool enableScaleAnimation;
+
+  /// 启用波浪动画 / Enable wave animation
+  final bool enableWaveAnimation;
+
   /// 切换进入动画时长 / Switch enter animation duration
   final Duration switchEnterDuration;
 
@@ -153,6 +159,8 @@ class LyricStyle {
     this.selectionAutoResumeMode = SelectionAutoResumeMode.selecting,
     this.activeHighlightColor,
     this.enableSwitchAnimation = true,
+    this.enableScaleAnimation = true,
+    this.enableWaveAnimation = true,
     this.switchEnterDuration = const Duration(milliseconds: 200),
     this.switchExitDuration = const Duration(milliseconds: 200),
     this.switchEnterCurve = Curves.easeIn,
@@ -191,6 +199,8 @@ class LyricStyle {
     SelectionAutoResumeMode? selectLineResumeMode,
     Object? activeHighlightColor = _unset,
     bool? enableSwitchAnimation,
+    bool? enableScaleAnimation,
+    bool? enableWaveAnimation,
     Duration? switchEnterDuration,
     Duration? switchExitDuration,
     Curve? switchEnterCurve,
@@ -239,6 +249,8 @@ class LyricStyle {
       selectionAutoResumeMode: selectLineResumeMode ?? selectionAutoResumeMode,
       enableSwitchAnimation:
           enableSwitchAnimation ?? this.enableSwitchAnimation,
+      enableScaleAnimation: enableScaleAnimation ?? this.enableScaleAnimation,
+      enableWaveAnimation: enableWaveAnimation ?? this.enableWaveAnimation,
       switchEnterDuration: switchEnterDuration ?? this.switchEnterDuration,
       switchExitDuration: switchExitDuration ?? this.switchExitDuration,
       switchEnterCurve: switchEnterCurve ?? this.switchEnterCurve,

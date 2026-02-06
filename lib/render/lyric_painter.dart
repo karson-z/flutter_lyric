@@ -83,8 +83,12 @@ class LyricPainter extends CustomPainter {
       // STAGGERED LOGIC
       double staggeredOffsetY = 0.0;
       // We use enterAnimationValue as the driver for staggered effect
-      if (i > playIndex && scrollDelta != 0.0 && switchState.enterAnimationValue < 1.0) {
-         double dist = (i - playIndex).toDouble();
+      if (style.enableSwitchAnimation &&
+          style.enableWaveAnimation &&
+          i > playIndex &&
+          scrollDelta != 0.0 &&
+          switchState.enterAnimationValue < 1.0) {
+        double dist = (i - playIndex).toDouble();
          double delay = dist * 0.08; 
          double t = (switchState.enterAnimationValue - delay) * 2.0; 
          t = t.clamp(0.0, 1.0);
@@ -213,7 +217,8 @@ class LyricPainter extends CustomPainter {
     TextPainter painter,
     Size size,
   ) {
-    if (layout.style.enableSwitchAnimation != true) return 0;
+    if (layout.style.enableSwitchAnimation != true ||
+        layout.style.enableScaleAnimation != true) return 0;
     double calcTranslateX(double contentWidth) {
       var transX = 0.0;
       if (layout.style.contentAlignment == CrossAxisAlignment.center) {
