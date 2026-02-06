@@ -83,19 +83,29 @@ class LyricPainter extends CustomPainter {
       // STAGGERED LOGIC
       double staggeredOffsetY = 0.0;
       // We use enterAnimationValue as the driver for staggered effect
-      if (style.enableSwitchAnimation &&
-          style.enableWaveAnimation &&
+      // if (style.enableSwitchAnimation &&
+      //     style.enableWaveAnimation &&
+      //     i > playIndex &&
+      //     scrollDelta != 0.0 &&
+      //     switchState.enterAnimationValue < 1.0) {
+      //   double dist = (i - playIndex).toDouble();
+      //    double delay = dist * 0.08;
+      //    double t = (switchState.enterAnimationValue - delay) * 2.0;
+      //    t = t.clamp(0.0, 1.0);
+      //    t = Curves.easeOut.transform(t);
+      //    staggeredOffsetY = scrollDelta * (1 - t);
+      // }
+      if (style.enableWaveAnimation &&
           i > playIndex &&
           scrollDelta != 0.0 &&
           switchState.enterAnimationValue < 1.0) {
         double dist = (i - playIndex).toDouble();
-         double delay = dist * 0.08; 
-         double t = (switchState.enterAnimationValue - delay) * 2.0; 
-         t = t.clamp(0.0, 1.0);
-         t = Curves.easeOut.transform(t);
-         staggeredOffsetY = scrollDelta * (1 - t);
+        double delay = dist * 0.08;
+        double t = (switchState.enterAnimationValue - delay) * 2.0;
+        t = t.clamp(0.0, 1.0);
+        t = Curves.easeOut.transform(t);
+        staggeredOffsetY = scrollDelta * (1 - t);
       }
-
       totalTranslateY += lineHeight;
       //计算高亮
       if ((totalTranslateY + layout.style.lineGap / 2) >= selectionPosition &&
@@ -217,8 +227,7 @@ class LyricPainter extends CustomPainter {
     TextPainter painter,
     Size size,
   ) {
-    if (layout.style.enableSwitchAnimation != true ||
-        layout.style.enableScaleAnimation != true) return 0;
+    if (layout.style.enableScaleAnimation != true) return 0;
     double calcTranslateX(double contentWidth) {
       var transX = 0.0;
       if (layout.style.contentAlignment == CrossAxisAlignment.center) {
@@ -307,8 +316,7 @@ class LyricPainter extends CustomPainter {
               ? activeHighlightWidth
               : double.infinity);
     } else if (index == switchState.exitIndex &&
-        switchState.exitAnimationValue < 1 &&
-        style.enableSwitchAnimation) {
+        switchState.exitAnimationValue < 1) {
       drawHighlight(canvas, size, metric.metrics,
           highlightTotalWidth: double.infinity);
     }

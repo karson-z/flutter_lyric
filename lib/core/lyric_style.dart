@@ -106,8 +106,8 @@ class LyricStyle {
 
   // ==================== 切换动画相关 Switch Animation ====================
 
-  /// 是否启用切换动画 / Enable switch animation
-  final bool enableSwitchAnimation;
+  // /// 是否启用切换动画 / Enable switch animation
+  // final bool enableSwitchAnimation;
 
   /// 启用缩放动画 / Enable scale animation
   final bool enableScaleAnimation;
@@ -158,7 +158,7 @@ class LyricStyle {
     required this.activeAutoResumeDuration,
     this.selectionAutoResumeMode = SelectionAutoResumeMode.selecting,
     this.activeHighlightColor,
-    this.enableSwitchAnimation = true,
+    // this.enableSwitchAnimation = true,
     this.enableScaleAnimation = true,
     this.enableWaveAnimation = true,
     this.switchEnterDuration = const Duration(milliseconds: 200),
@@ -247,8 +247,8 @@ class LyricStyle {
       activeAutoResumeDuration:
           activeLineResumeDuration ?? activeAutoResumeDuration,
       selectionAutoResumeMode: selectLineResumeMode ?? selectionAutoResumeMode,
-      enableSwitchAnimation:
-          enableSwitchAnimation ?? this.enableSwitchAnimation,
+      // enableSwitchAnimation:
+      //     enableSwitchAnimation ?? this.enableSwitchAnimation,
       enableScaleAnimation: enableScaleAnimation ?? this.enableScaleAnimation,
       enableWaveAnimation: enableWaveAnimation ?? this.enableWaveAnimation,
       switchEnterDuration: switchEnterDuration ?? this.switchEnterDuration,
