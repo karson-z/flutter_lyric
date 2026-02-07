@@ -71,6 +71,23 @@ class LyricPainter extends CustomPainter {
        }
     }
 
+    // First pass: collect visible line indices (especially those after playIndex)
+    final visibleLineIndices = <int>[];
+    var tempTranslateY = 0.0;
+    tempTranslateY -= scrollY;
+    for (var i = 0; i < layout.metrics.length; i++) {
+      final isActive = i == playIndex;
+      final lineHeight = layout.getLineHeight(isActive, i);
+      tempTranslateY += lineHeight;
+      if (tempTranslateY - lineHeight >= size.height) {
+        break;
+      }
+      if (tempTranslateY > 0 && i > playIndex) {
+        visibleLineIndices.add(i);
+      }
+      tempTranslateY += layout.style.lineGap;
+    }
+
     var totalTranslateY = 0.0;
     canvas.translate(0, -scrollY);
     totalTranslateY -= scrollY;
@@ -79,32 +96,23 @@ class LyricPainter extends CustomPainter {
     for (var i = 0; i < layout.metrics.length; i++) {
       final isActive = i == playIndex;
       final lineHeight = layout.getLineHeight(isActive, i);
-      
-      // STAGGERED LOGIC
+
       double staggeredOffsetY = 0.0;
-      // We use enterAnimationValue as the driver for staggered effect
-      // if (style.enableSwitchAnimation &&
-      //     style.enableWaveAnimation &&
-      //     i > playIndex &&
-      //     scrollDelta != 0.0 &&
-      //     switchState.enterAnimationValue < 1.0) {
-      //   double dist = (i - playIndex).toDouble();
-      //    double delay = dist * 0.08;
-      //    double t = (switchState.enterAnimationValue - delay) * 2.0;
-      //    t = t.clamp(0.0, 1.0);
-      //    t = Curves.easeOut.transform(t);
-      //    staggeredOffsetY = scrollDelta * (1 - t);
-      // }
       if (style.enableWaveAnimation &&
           i > playIndex &&
           scrollDelta != 0.0 &&
           switchState.enterAnimationValue < 1.0) {
-        double dist = (i - playIndex).toDouble();
-        double delay = dist * 0.08;
-        double t = (switchState.enterAnimationValue - delay) * 2.0;
-        t = t.clamp(0.0, 1.0);
-        t = Curves.easeOut.transform(t);
-        staggeredOffsetY = scrollDelta * (1 - t);
+        // Calculate delay based on position in visible lines, not all lines
+        int visibleIndex = visibleLineIndices.indexOf(i);
+        if (visibleIndex >= 0) {
+          // Use the position in visible lines for delay calculation
+          double dist = visibleIndex.toDouble();
+          double delay = dist * 0.08;
+          double t = (switchState.enterAnimationValue - delay) * 2.0;
+          t = t.clamp(0.0, 1.0);
+          t = Curves.easeOut.transform(t);
+          staggeredOffsetY = scrollDelta * (1 - t);
+        }
       }
       totalTranslateY += lineHeight;
       //计算高亮
