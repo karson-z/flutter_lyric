@@ -85,6 +85,7 @@ class LyricPainter extends CustomPainter {
       double staggeredOffsetY = 0.0;
       //“波浪式”的歌词滚动过渡动画（延迟按视口内行序计算，保证少行时也有波浪感）
       if (style.enableWaveAnimation &&
+          !isSelecting &&
           i > playIndex &&
           scrollDelta != 0.0 &&
           switchState.enterAnimationValue < 1.0) {
