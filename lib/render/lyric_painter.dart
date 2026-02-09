@@ -76,30 +76,19 @@ class LyricPainter extends CustomPainter {
     totalTranslateY -= scrollY;
     var selectedIndex = -1;
     final showLineRects = <int, Rect>{};
+    // 视口内「播放行之后」的行序号，用于波浪延迟（0,1,2...），使少行时也有明显波浪
+    var viewportWaveIndex = 0;
     for (var i = 0; i < layout.metrics.length; i++) {
       final isActive = i == playIndex;
       final lineHeight = layout.getLineHeight(isActive, i);
-      
-      // STAGGERED LOGIC
+
       double staggeredOffsetY = 0.0;
-      // We use enterAnimationValue as the driver for staggered effect
-      // if (style.enableSwitchAnimation &&
-      //     style.enableWaveAnimation &&
-      //     i > playIndex &&
-      //     scrollDelta != 0.0 &&
-      //     switchState.enterAnimationValue < 1.0) {
-      //   double dist = (i - playIndex).toDouble();
-      //    double delay = dist * 0.08;
-      //    double t = (switchState.enterAnimationValue - delay) * 2.0;
-      //    t = t.clamp(0.0, 1.0);
-      //    t = Curves.easeOut.transform(t);
-      //    staggeredOffsetY = scrollDelta * (1 - t);
-      // }
+      //“波浪式”的歌词滚动过渡动画（延迟按视口内行序计算，保证少行时也有波浪感）
       if (style.enableWaveAnimation &&
           i > playIndex &&
           scrollDelta != 0.0 &&
           switchState.enterAnimationValue < 1.0) {
-        double dist = (i - playIndex).toDouble();
+        double dist = viewportWaveIndex.toDouble();
         double delay = dist * 0.08;
         double t = (switchState.enterAnimationValue - delay) * 2.0;
         t = t.clamp(0.0, 1.0);
@@ -138,6 +127,7 @@ class LyricPainter extends CustomPainter {
           );
         }
         canvas.restore();
+        if (i > playIndex) viewportWaveIndex++;
       }
       totalTranslateY += layout.style.lineGap;
       if (_debugLyric) {
