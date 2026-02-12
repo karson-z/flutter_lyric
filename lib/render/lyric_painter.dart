@@ -257,32 +257,57 @@ class LyricPainter extends CustomPainter {
   }
 
   drawLine(
-    Canvas canvas,
-    LineMetrics metric,
-    Size size,
-    int index,
-    bool isInAnchorArea,
-  ) {
+      Canvas canvas,
+      LineMetrics metric,
+      Size size,
+      int index,
+      bool isInAnchorArea,
+      ) {
     final isActive = playIndex == index;
-    TextStyle replaceTextStyle(TextStyle style, Color color) {
-      return style.copyWith(
-          color: isSelecting && isInAnchorArea ? color : style.color);
+
+    // --- 模糊配置 ---
+    const double blurSigma = 1.2;
+
+    // --- 样式替换逻辑 ---
+    TextStyle replaceTextStyle(TextStyle style, Color? selectedColor) {
+      // 1. 确定最终显示颜色
+      final Color targetColor = isSelecting && isInAnchorArea && selectedColor != null
+          ? selectedColor
+          : (style.color ?? Colors.white);
+
+      // 2. 非激活行应用模糊
+      if (!isActive) {
+        return style.copyWith(
+          foreground: Paint()
+            ..color = targetColor
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, blurSigma),
+        );
+      }
+
+      // 3. 激活行仅处理选中变色
+      return style.copyWith(color: targetColor);
     }
 
     final painter = isActive ? metric.activeTextPainter : metric.textPainter;
-    // 获取原来的 TextSpan
+    // 保存原始 TextSpan
     final oldSpan = painter.text!;
 
-    // 创建一个新的 TextSpan，只修改 color
+    // 应用新样式
     painter.text = TextSpan(
-      text: oldSpan.toPlainText(), // 保持文字不变
+      text: oldSpan.toPlainText(),
       style: replaceTextStyle(
         oldSpan.style!,
         layout.style.selectedColor,
       ),
     );
+
+    // 【关键修复】修改 text 后必须重新 layout，否则无法获取 width 或 paint
+    painter.layout(maxWidth: size.width);
+
     canvas.save();
+    // 现在可以安全访问 painter.width 了
     canvas.translate(calcContentAliginOffset(painter.width, size.width), 0);
+
     if (_debugLyric) {
       canvas.drawRect(
           Rect.fromLTWH(0, 0, painter.width, painter.height),
@@ -291,16 +316,24 @@ class LyricPainter extends CustomPainter {
                 ? Colors.blue.withAlpha(50)
                 : Colors.red.withAlpha(50));
     }
-    
-    // Apply ORIGINAL switch animation (Scale/Translate for active/exit lines)
+
+    // 处理行切换动画
     final switchOffset = handleSwitchAnimation(
         canvas, metric, index, switchState, painter, size);
 
+    // 绘制文字
     painter.paint(
       canvas,
-      Offset(0, 0),
+      const Offset(0, 0),
     );
+
+    // 【状态还原】绘制完成后必须还原 TextSpan，否则会污染缓存
     painter.text = oldSpan;
+    // 【建议】还原后最好也 layout 一下，确保 Painter 回到可用状态
+    // 虽然下一帧会重设，但这能防止其他地方读取出错
+    painter.layout(maxWidth: size.width);
+
+    // --- 绘制高亮逻辑 ---
     if (isActive) {
       drawHighlight(canvas, size, metric.activeMetrics,
           highlightTotalWidth: metric.words?.isNotEmpty == true
@@ -311,12 +344,15 @@ class LyricPainter extends CustomPainter {
       drawHighlight(canvas, size, metric.metrics,
           highlightTotalWidth: double.infinity);
     }
-    
+
     canvas.restore();
+
+    // --- 处理翻译行 ---
     final mainHeight = isActive ? metric.activeHeight : metric.height;
     if (metric.line.translation?.isNotEmpty == true) {
       final tPainter = metric.translationTextPainter;
       final tOldSpan = tPainter.text;
+
       tPainter.text = TextSpan(
         text: metric.line.translation,
         style: replaceTextStyle(
@@ -325,19 +361,25 @@ class LyricPainter extends CustomPainter {
           layout.style.selectedTranslationColor,
         ),
       );
+
+      // 【关键修复】翻译行修改后也需要 layout
+      tPainter.layout(maxWidth: size.width);
+
       canvas.save();
       canvas.translate(calcContentAliginOffset(tPainter.width, size.width), 0);
       canvas.translate(0, switchOffset);
-      
+
       try {
         tPainter.paint(
           canvas,
           Offset(0, mainHeight + layout.style.translationLineGap),
         );
-      } catch (_) {
-        // 避免系统字体变更触发 assert(debugSize == size);
-      }
+      } catch (_) {}
+
+      // 还原翻译行
       tPainter.text = tOldSpan;
+      tPainter.layout(maxWidth: size.width); // 还原 layout
+
       canvas.translate(0, -switchOffset);
       canvas.restore();
     }
