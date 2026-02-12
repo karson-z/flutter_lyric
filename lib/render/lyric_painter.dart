@@ -66,7 +66,7 @@ class LyricPainter extends CustomPainter {
        // Only apply staggered effect if index changed
        if (prev < layout.metrics.length && prev != curr) {
           // Approximate delta using previous line's height + gap
-          double h = layout.getLineHeight(true, prev); 
+          double h = layout.getLineHeight(true, prev);
           scrollDelta = (h + layout.style.lineGap) * (curr - prev).sign;
        }
     }
@@ -76,26 +76,26 @@ class LyricPainter extends CustomPainter {
     totalTranslateY -= scrollY;
     var selectedIndex = -1;
     final showLineRects = <int, Rect>{};
-    // 视口内「播放行之后」的行序号，用于波浪延迟（0,1,2...），使少行时也有明显波浪
-    var viewportWaveIndex = 0;
+    // // 视口内「播放行之后」的行序号，用于波浪延迟（0,1,2...），使少行时也有明显波浪
+    // var viewportWaveIndex = 0;
     for (var i = 0; i < layout.metrics.length; i++) {
       final isActive = i == playIndex;
       final lineHeight = layout.getLineHeight(isActive, i);
 
       double staggeredOffsetY = 0.0;
-      //“波浪式”的歌词滚动过渡动画（延迟按视口内行序计算，保证少行时也有波浪感）
-      if (style.enableWaveAnimation &&
-          !isSelecting &&
-          i > playIndex &&
-          scrollDelta != 0.0 &&
-          switchState.enterAnimationValue < 1.0) {
-        double dist = viewportWaveIndex.toDouble();
-        double delay = dist * 0.08;
-        double t = (switchState.enterAnimationValue - delay) * 2.0;
-        t = t.clamp(0.0, 1.0);
-        t = Curves.easeOut.transform(t);
-        staggeredOffsetY = scrollDelta * (1 - t);
-      }
+      // //“波浪式”的歌词滚动过渡动画（延迟按视口内行序计算，保证少行时也有波浪感）
+      // if (style.enableWaveAnimation &&
+      //     !isSelecting &&
+      //     i > playIndex &&
+      //     scrollDelta != 0.0 &&
+      //     switchState.enterAnimationValue < 1.0) {
+      //   double dist = viewportWaveIndex.toDouble();
+      //   double delay = dist * 0.08;
+      //   double t = (switchState.enterAnimationValue - delay) * 2.0;
+      //   t = t.clamp(0.0, 1.0);
+      //   t = Curves.easeOut.transform(t);
+      //   staggeredOffsetY = scrollDelta * (1 - t);
+      // }
       totalTranslateY += lineHeight;
       //计算高亮
       if ((totalTranslateY + layout.style.lineGap / 2) >= selectionPosition &&
@@ -112,11 +112,11 @@ class LyricPainter extends CustomPainter {
         final lineRect = Rect.fromLTWH(0, totalTranslateY - lineHeight,
             size.width + layout.style.contentPadding.horizontal, lineHeight);
         showLineRects[i] = lineRect;
-        
+
         // Apply staggered offset
         canvas.save();
         canvas.translate(0, staggeredOffsetY);
-        
+
         if (style.activeLineOnly && !isActive) {
         } else {
           drawLine(
@@ -128,7 +128,7 @@ class LyricPainter extends CustomPainter {
           );
         }
         canvas.restore();
-        if (i > playIndex) viewportWaveIndex++;
+        // if (i > playIndex) viewportWaveIndex++;
       }
       totalTranslateY += layout.style.lineGap;
       if (_debugLyric) {
@@ -211,14 +211,16 @@ class LyricPainter extends CustomPainter {
   }
 
   double handleSwitchAnimation(
-    Canvas canvas,
-    LineMetrics metric,
-    int index,
-    LyricLineSwitchState switchState,
-    TextPainter painter,
-    Size size,
-  ) {
-    if (layout.style.enableScaleAnimation != true) return 0;
+      Canvas canvas,
+      LineMetrics metric,
+      int index,
+      LyricLineSwitchState switchState,
+      TextPainter painter,
+      Size size,
+      ) {
+    if (layout.style.enableSwitchAnimation != true) return 0;
+
+    // 计算水平中心点 (保持你原有的逻辑)
     double calcTranslateX(double contentWidth) {
       var transX = 0.0;
       if (layout.style.contentAlignment == CrossAxisAlignment.center) {
@@ -230,29 +232,50 @@ class LyricPainter extends CustomPainter {
     }
 
     final transX = calcTranslateX(painter.width);
+
+    // 定义一个缓动曲线，让缩放不那么生硬
+    // 如果你的 AnimationValue 已经是物理弹簧产生的，这里可以用 Curves.linear
+    // 如果觉得弹簧不够软，可以用 Curves.easeOutQuart 增加一点细腻的减速感
+    const curve = Curves.linear;
+
+    // --- ENTER (从小变大) ---
     if (index == switchState.enterIndex) {
-      final enterAnimationValue = switchState.enterAnimationValue;
-      final fromHeight = metric.height;
-      final toHeight = metric.activeHeight;
-      final transY = toHeight;
+      // 应用曲线
+      final t = curve.transform(switchState.enterAnimationValue); // 0.0 -> 1.0
+
+      final activeH = metric.activeHeight;
+      final normalH = metric.height;
+
+      final targetScale = ui.lerpDouble(normalH / activeH, 1.0, t)!;
+
+      // 【关键优化】缩放中心点设为高度的一半 (垂直居中)
+      // 因为 activeTextPainter 的高度是 activeH
+      final transY = activeH / 2.0;
+
       canvas.translate(transX, transY);
-      canvas.scale(
-          1 - ((toHeight - fromHeight) / toHeight) * (1 - enterAnimationValue));
+      canvas.scale(targetScale);
       canvas.translate(-transX, -transY);
     }
-    // EXIT
+
+    // --- EXIT (从大变小) ---
     if (index == switchState.exitIndex) {
-      final exitAnimationValue = switchState.exitAnimationValue;
-      final fromHeight = metric.activeHeight;
-      final toHeight = metric.height;
-      final transY = 0.0;
+      // 应用曲线 (注意 exit 是 1.0 -> 0.0)
+      // 我们希望动画进程是 0.0(刚开始退) -> 1.0(退完了)
+      final t = curve.transform(1.0 - switchState.exitAnimationValue);
+
+      final activeH = metric.activeHeight;
+      final normalH = metric.height;
+
+      final targetScale = ui.lerpDouble(activeH / normalH, 1.0, t)!;
+      final transY = normalH / 2.0;
+
       canvas.translate(transX, transY);
-      final scale =
-          ((fromHeight - toHeight) / fromHeight) * (1 - exitAnimationValue);
-      canvas.scale(1 + scale);
+      canvas.scale(targetScale);
       canvas.translate(-transX, -transY);
-      return toHeight * scale;
+
+      return 0;
     }
+
     return 0;
   }
 
@@ -327,22 +350,30 @@ class LyricPainter extends CustomPainter {
       const Offset(0, 0),
     );
 
-    // 【状态还原】绘制完成后必须还原 TextSpan，否则会污染缓存
+    // 【状态还原】
     painter.text = oldSpan;
-    // 【建议】还原后最好也 layout 一下，确保 Painter 回到可用状态
-    // 虽然下一帧会重设，但这能防止其他地方读取出错
     painter.layout(maxWidth: size.width);
 
-    // --- 绘制高亮逻辑 ---
+    // --- 绘制高亮逻辑 (修复版) ---
     if (isActive) {
+      // 1. 当前激活行：绘制卡拉OK逐字高亮
       drawHighlight(canvas, size, metric.activeMetrics,
           highlightTotalWidth: metric.words?.isNotEmpty == true
               ? activeHighlightWidth
-              : double.infinity);
-    } else if (index == switchState.exitIndex &&
-        switchState.exitAnimationValue < 1) {
-      drawHighlight(canvas, size, metric.metrics,
-          highlightTotalWidth: double.infinity);
+              : double.infinity); // 如果没时间轴，默认全高亮
+
+    } else if (index == switchState.exitIndex) {
+      final double fadeOpacity = switchState.exitAnimationValue.clamp(0.0, 1.0);
+
+      if (fadeOpacity > 0.01) {
+        canvas.saveLayer(
+            Rect.fromLTWH(0, 0, painter.width, painter.height),
+            Paint()..color = Colors.white.withOpacity(fadeOpacity)
+        );
+        drawHighlight(canvas, size, metric.metrics,
+            highlightTotalWidth: double.infinity);
+        canvas.restore();
+      }
     }
 
     canvas.restore();
