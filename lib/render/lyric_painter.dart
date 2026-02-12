@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_lyric/core/lyric_line_view_model.dart';
 import 'package:flutter_lyric/core/lyric_model.dart';
 import 'package:flutter_lyric/core/lyric_style.dart';
 import 'package:flutter_lyric/render/lyric_layout.dart';
@@ -22,6 +23,9 @@ class LyricPainter extends CustomPainter {
   final Function(
     Map<int, Rect>,
   ) onShowLineRectsChange;
+  
+  // 新增：接收 ViewModels
+  final List<LyricLineViewModel>? viewModels;
 
   LyricPainter({
     required this.layout,
@@ -33,6 +37,7 @@ class LyricPainter extends CustomPainter {
     required this.isSelecting,
     required this.onShowLineRectsChange,
     required this.style,
+    this.viewModels,
   });
 
   @override
@@ -85,20 +90,51 @@ class LyricPainter extends CustomPainter {
         showLineRects[i] = lineRect;
 
         // Apply staggered offset
-        canvas.save();
-        canvas.translate(0, staggeredOffsetY);
+      canvas.save();
+      canvas.translate(0, staggeredOffsetY);
 
-        if (style.activeLineOnly && !isActive) {
-        } else {
-          drawLine(
-            canvas,
-            layout.metrics[i],
-            size,
-            i,
-            selectedIndex == i,
-          );
+      // --- Apple Music Style Animation ---
+      if (viewModels != null && i < viewModels!.length) {
+        final vm = viewModels![i];
+        
+        // 1. Scale
+        // 根据对齐方式确定缩放中心点
+        double originX = 0;
+        if (layout.style.contentAlignment == CrossAxisAlignment.center) {
+          originX = size.width / 2;
+        } else if (layout.style.contentAlignment == CrossAxisAlignment.end) {
+          originX = size.width;
         }
-        canvas.restore();
+        // Start 默认为 0
+        
+        final centerY = lineHeight / 2;
+        
+        // 应用缩放
+        canvas.translate(originX, centerY);
+        canvas.scale(vm.currentScale);
+        canvas.translate(-originX, -centerY);
+        
+        // 注意：透明度和模糊在 drawLine 内部处理，这里我们传递额外参数或在 drawLine 里访问 vm?
+        // 由于 drawLine 内部逻辑较深，我们直接修改 metric 里的 painter 属性不太好
+        // 我们可以通过 saveLayer 来应用透明度
+        if (vm.currentOpacity < 1.0) {
+           // 简单的透明度应用 (注意这可能会影响性能，但在 CustomPainter 中是标准做法)
+           // 如果不使用 saveLayer，可以直接修改 Paint 的 color alpha，但需要深入 drawLine
+        }
+      }
+
+      if (style.activeLineOnly && !isActive) {
+      } else {
+        drawLine(
+          canvas,
+          layout.metrics[i],
+          size,
+          i,
+          selectedIndex == i,
+          viewModels != null && i < viewModels!.length ? viewModels![i] : null, // Pass VM
+        );
+      }
+      canvas.restore();
       }
       totalTranslateY += layout.style.lineGap;
       if (_debugLyric) {
@@ -254,26 +290,35 @@ class LyricPainter extends CustomPainter {
       LineMetrics metric,
       Size size,
       int index,
-      bool isInAnchorArea,
-      ) {
+      bool isInAnchorArea, [
+      LyricLineViewModel? vm,
+  ]) {
     final isActive = playIndex == index;
 
     // --- 模糊配置 ---
-    const double blurSigma = 1.2;
+    // 如果有 VM，使用 VM 的 blur，否则使用默认逻辑
+    double blurSigma = vm?.currentBlur ?? 1.2;
 
     // --- 样式替换逻辑 ---
     TextStyle replaceTextStyle(TextStyle style, Color? selectedColor) {
       // 1. 确定最终显示颜色
-      final Color targetColor = isSelecting && isInAnchorArea && selectedColor != null
+      Color targetColor = isSelecting && isInAnchorArea && selectedColor != null
           ? selectedColor
           : (style.color ?? Colors.white);
+          
+      // 应用 VM 的透明度
+      if (vm != null) {
+        targetColor = targetColor.withOpacity(
+          (targetColor.opacity * vm.currentOpacity).clamp(0.0, 1.0)
+        );
+      }
 
-      // 2. 非激活行应用模糊
-      if (!isActive) {
+      // 2. 非激活行应用模糊，或者 VM 指定了模糊
+      if (!isActive || (vm != null && vm.currentBlur > 0)) {
         return style.copyWith(
           foreground: Paint()
             ..color = targetColor
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, blurSigma),
+            ..maskFilter = blurSigma > 0 ? MaskFilter.blur(BlurStyle.normal, blurSigma) : null,
         );
       }
 
