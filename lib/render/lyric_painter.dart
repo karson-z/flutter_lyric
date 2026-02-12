@@ -57,45 +57,16 @@ class LyricPainter extends CustomPainter {
         Paint()..color = layout.style.selectedColor,
       );
     }
-
-    // Calculate scroll delta for staggered effect
-    double scrollDelta = 0.0;
-    if (switchState.exitIndex != -1 && switchState.enterIndex != -1) {
-       int prev = switchState.exitIndex;
-       int curr = switchState.enterIndex;
-       // Only apply staggered effect if index changed
-       if (prev < layout.metrics.length && prev != curr) {
-          // Approximate delta using previous line's height + gap
-          double h = layout.getLineHeight(true, prev);
-          scrollDelta = (h + layout.style.lineGap) * (curr - prev).sign;
-       }
-    }
-
     var totalTranslateY = 0.0;
     canvas.translate(0, -scrollY);
     totalTranslateY -= scrollY;
     var selectedIndex = -1;
     final showLineRects = <int, Rect>{};
-    // // 视口内「播放行之后」的行序号，用于波浪延迟（0,1,2...），使少行时也有明显波浪
-    // var viewportWaveIndex = 0;
     for (var i = 0; i < layout.metrics.length; i++) {
       final isActive = i == playIndex;
       final lineHeight = layout.getLineHeight(isActive, i);
 
       double staggeredOffsetY = 0.0;
-      // //“波浪式”的歌词滚动过渡动画（延迟按视口内行序计算，保证少行时也有波浪感）
-      // if (style.enableWaveAnimation &&
-      //     !isSelecting &&
-      //     i > playIndex &&
-      //     scrollDelta != 0.0 &&
-      //     switchState.enterAnimationValue < 1.0) {
-      //   double dist = viewportWaveIndex.toDouble();
-      //   double delay = dist * 0.08;
-      //   double t = (switchState.enterAnimationValue - delay) * 2.0;
-      //   t = t.clamp(0.0, 1.0);
-      //   t = Curves.easeOut.transform(t);
-      //   staggeredOffsetY = scrollDelta * (1 - t);
-      // }
       totalTranslateY += lineHeight;
       //计算高亮
       if ((totalTranslateY + layout.style.lineGap / 2) >= selectionPosition &&
@@ -128,7 +99,6 @@ class LyricPainter extends CustomPainter {
           );
         }
         canvas.restore();
-        // if (i > playIndex) viewportWaveIndex++;
       }
       totalTranslateY += layout.style.lineGap;
       if (_debugLyric) {

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart'; // 引入 Scheduler 以使用 Ticker
 import 'package:flutter_lyric/core/lyric_controller.dart';
@@ -27,7 +25,6 @@ on State<T>, LyricLayoutMixin<T>, TickerProviderStateMixin<T> {
   int _exitIndex = -1;
   int _enterIndex = -1;
 
-  // --- 1. 使用物理引擎替代 AnimationController ---
   late final Spring _enterSpring;
   late final Spring _exitSpring;
   late final Ticker _ticker;
@@ -40,7 +37,6 @@ on State<T>, LyricLayoutMixin<T>, TickerProviderStateMixin<T> {
         LyricEvent.playSwitchAnimation, onPlaySwitchAnimation);
     controller.registerEvent(LyricEvent.reset, _reset);
 
-    // ... 物理参数初始化保持不变 ...
     _enterSpring = Spring(initialPosition: 0);
     _enterSpring.updateParams(const SpringOptions(
       mass: 1.0, stiffness: 120.0, damping: 18.0, soft: false,
