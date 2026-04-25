@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter_lyric/core/lyric_style.dart';
+import 'package:flutter_lyric/core/lyric_scroll_behavior.dart';
 
 class EditStyle extends StatelessWidget {
   final LyricStyle style;
@@ -427,7 +429,7 @@ class EditStyle extends StatelessWidget {
                           max: 500,
                           divisions: 100,
                           label:
-                              style.fadeRange?.bottom.toStringAsFixed(2) ?? '1',
+                          style.fadeRange?.bottom.toStringAsFixed(2) ?? '1',
                           onChanged: (value) {
                             style = style.copyWith(
                               fadeRange: FadeRange(
@@ -463,76 +465,54 @@ class EditStyle extends StatelessWidget {
                       );
                     },
                   ),
+
                 const SizedBox(height: 24),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Scroll Animation Duration: ${style.scrollDuration.inMilliseconds.toStringAsFixed(0)}ms',
-                      ),
-                      SizedBox(width: 30),
-                      Text("Fine Control:"),
-                      Checkbox(
-                        value: style.scrollDurations.isNotEmpty == true,
-                        onChanged: (value) {
-                          style = style.copyWith(
-                            scrollDurationMap:
-                                style.scrollDurations.isNotEmpty == true
-                                ? {}
-                                : {
-                                    500: Duration(milliseconds: 500),
-                                    1000: Duration(milliseconds: 1000),
-                                  },
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                Slider(
-                  value: style.scrollDuration.inMilliseconds.toDouble(),
-                  min: 0,
-                  max: 3000,
-                  divisions: 100,
-                  onChanged: (value) {
-                    style = style.copyWith(
-                      scrollDuration: Duration(milliseconds: value.toInt()),
-                    );
-                  },
-                ),
-                if (style.scrollDurations.isNotEmpty == true)
-                  ...style.scrollDurations.entries.map((entry) {
-                    return Row(
-                      children: [
-                        Text(
-                          '${entry.key.toInt()}px-${entry.value.inMilliseconds.toStringAsFixed(0)}ms',
+                Row(
+                  children: [
+                    const Text('Scroll Animation Behavior-'),
+                    const SizedBox(width: 12),
+                    DropdownButton<Type>(
+                      value: style.scrollBehavior?.runtimeType ??
+                          CurvedScrollConfig,
+                      items: const [
+                        DropdownMenuItem(
+                          value: CurvedScrollConfig,
+                          child: Text('Curved (Traditional)'),
                         ),
-                        Expanded(
-                          child: Slider(
-                            value: entry.value.inMilliseconds.toDouble(),
-                            min: 0,
-                            max: 3000,
-                            divisions: 100,
-                            label: entry.value.inMilliseconds.toStringAsFixed(
-                              0,
-                            ),
-                            onChanged: (value) {
-                              style = style.copyWith(
-                                scrollDurationMap: {
-                                  ...style.scrollDurations,
-                                  entry.key: Duration(
-                                    milliseconds: value.toInt(),
-                                  ),
-                                },
-                              );
-                            },
-                          ),
+                        DropdownMenuItem(
+                          value: SpringScrollConfig,
+                          child: Text('Spring (Physics)'),
                         ),
                       ],
-                    );
-                  }),
+                      onChanged: (value) {
+                        if (value == null) return;
+
+                        if (value == CurvedScrollConfig) {
+                          style = style.copyWith(
+                            scrollBehavior: CurvedScrollConfig(
+                              curve: Curves.easeOutCubic,
+                              durationCalculator: (offset) {
+                                if (offset > 500) return const Duration(milliseconds: 500);
+                                if (offset > 200) return const Duration(milliseconds: 300);
+                                return const Duration(milliseconds: 150);
+                              },
+                            ),
+                          );
+                        } else if (value == SpringScrollConfig) {
+                          style = style.copyWith(
+                            scrollBehavior: SpringScrollConfig(
+                              springDescription: SpringDescription.withDampingRatio(
+                                mass: 1.0,
+                                stiffness: 100.0,
+                                ratio: 1.0, // 阻尼比设为 1.0，底层会自动计算出无回弹所需的 damping 值
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
 
                 const SizedBox(height: 24),
                 SingleChildScrollView(

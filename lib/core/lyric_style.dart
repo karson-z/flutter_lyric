@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import 'lyric_scroll_behavior.dart';
+
 /// 选中行自动恢复模式 / Selection auto resume mode
 enum SelectionAutoResumeMode {
   /// 选择中实时恢复 / Resume in real-time while selecting
@@ -83,15 +85,8 @@ class LyricStyle {
   final FadeRange? fadeRange;
 
   // ==================== 滚动动画相关 Scroll Animation ====================
-
-  /// 滚动动画时长 / Scroll animation duration
-  final Duration scrollDuration;
-
-  /// 滚动动画时长映射（更精细的动画时长控制）/ Scroll animation duration map (for finer control)
-  final Map<double, Duration> scrollDurations;
-
-  /// 滚动动画曲线 / Scroll animation curve
-  final Curve scrollCurve;
+  ///
+  final ScrollBehaviorConfig? scrollBehavior;
 
   // ==================== 自动恢复相关 Auto Resume ====================
 
@@ -142,10 +137,9 @@ class LyricStyle {
     required this.translationLineGap,
     this.contentPadding = EdgeInsets.zero,
     required this.selectionAnchorPosition,
+    this.scrollBehavior,
     this.fadeRange,
-    required this.scrollDuration,
     required this.selectionAlignment,
-    this.scrollDurations = const {},
     required this.selectedColor,
     required this.selectedTranslationColor,
     required this.selectionAutoResumeDuration,
@@ -157,7 +151,6 @@ class LyricStyle {
     this.switchExitDuration = const Duration(milliseconds: 200),
     this.switchEnterCurve = Curves.easeIn,
     this.switchExitCurve = Curves.easeOut,
-    this.scrollCurve = Curves.easeOutCubic,
     this.translationActiveColor,
     this.disableTouchEvent = false,
     double? activeAnchorPosition,
@@ -183,9 +176,8 @@ class LyricStyle {
     EdgeInsets? contentPadding,
     double? anchorPosition,
     FadeRange? fadeRange,
-    Duration? scrollDuration,
+    ScrollBehaviorConfig? scrollBehavior,
     MainAxisAlignment? highlightAlign,
-    Map<double, Duration>? scrollDurationMap,
     Duration? selectLineResumeDuration,
     Duration? activeLineResumeDuration,
     SelectionAutoResumeMode? selectLineResumeMode,
@@ -195,7 +187,6 @@ class LyricStyle {
     Duration? switchExitDuration,
     Curve? switchEnterCurve,
     Curve? switchExitCurve,
-    Curve? scrollCurve,
     Object? translationActiveColor = _unset,
     Object? activeAnchorPosition = _unset,
     Color? selectedColor,
@@ -215,6 +206,7 @@ class LyricStyle {
       translationStyle: translationStyle ?? this.translationStyle,
       lineTextAlign: textAlign ?? lineTextAlign,
       lineGap: lineGap ?? this.lineGap,
+      scrollBehavior: scrollBehavior ?? this.scrollBehavior,
       contentAlignment: contentAlignment ?? this.contentAlignment,
       translationLineGap: translationLineGap ?? this.translationLineGap,
       contentPadding: contentPadding ?? this.contentPadding,
@@ -223,7 +215,6 @@ class LyricStyle {
           ? this.activeAnchorPosition
           : activeAnchorPosition as double?,
       fadeRange: fadeRange ?? this.fadeRange,
-      scrollDuration: scrollDuration ?? this.scrollDuration,
       selectionAlignment: highlightAlign ?? selectionAlignment,
       selectedColor: selectedColor ?? this.selectedColor,
       selectedTranslationColor:
@@ -231,7 +222,6 @@ class LyricStyle {
       activeAlignment: activeAlignment == _unset
           ? this.activeAlignment
           : activeAlignment as MainAxisAlignment?,
-      scrollDurations: scrollDurationMap ?? scrollDurations,
       selectionAutoResumeDuration:
           selectLineResumeDuration ?? selectionAutoResumeDuration,
       activeAutoResumeDuration:
@@ -243,7 +233,6 @@ class LyricStyle {
       switchExitDuration: switchExitDuration ?? this.switchExitDuration,
       switchEnterCurve: switchEnterCurve ?? this.switchEnterCurve,
       switchExitCurve: switchExitCurve ?? this.switchExitCurve,
-      scrollCurve: scrollCurve ?? this.scrollCurve,
       translationActiveColor: translationActiveColor == _unset
           ? this.translationActiveColor
           : translationActiveColor as Color?,

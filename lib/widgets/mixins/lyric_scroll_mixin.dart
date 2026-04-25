@@ -6,9 +6,11 @@ import 'package:flutter_lyric/core/lyric_style.dart';
 import 'package:flutter_lyric/render/lyric_layout.dart';
 import 'package:flutter_lyric/widgets/mixins/lyric_layout_mixin.dart';
 
+import '../../core/lyric_scroll_behavior.dart';
+
 /// 负责歌词滚动动画控制的 Mixin
 mixin LyricScrollMixin<T extends StatefulWidget>
-    on State<T>, TickerProviderStateMixin<T>, LyricLayoutMixin<T> {
+on State<T>, TickerProviderStateMixin<T>, LyricLayoutMixin<T> {
   @override
   LyricController get controller;
   @override
@@ -28,15 +30,19 @@ mixin LyricScrollMixin<T extends StatefulWidget>
   @override
   void initState() {
     super.initState();
-    _scrollController =
-        AnimationController(vsync: this, duration: style.scrollDuration)
-          ..addListener(() {
-            final value = _translationAnimation?.value;
-            if (!mounted || value == null || value == scrollY) {
-              return;
-            }
-            scrollY = value;
-          });
+    _scrollController = AnimationController(
+      vsync: this,
+      //必须解除边界限制，因为现在控制器输出的是实际坐标，而非 0.0~1.0
+      lowerBound: double.negativeInfinity,
+      upperBound: double.infinity,
+    )..addListener(() {
+      final value = _translationAnimation?.value;
+      if (!mounted || value == null || value == scrollY) {
+        return;
+      }
+      scrollY = value;
+    });
+
     controller.registerEvent(LyricEvent.reset, _reset);
     controller.activeIndexNotifiter.addListener(playIndexListener);
   }
@@ -57,21 +63,6 @@ mixin LyricScrollMixin<T extends StatefulWidget>
     updateScrollY();
   }
 
-  /// 根据偏移量计算动画时长
-  Duration calculateAnimationDuration(double offset) {
-    var duration = style.scrollDuration;
-    if (style.scrollDurations.isNotEmpty == true) {
-      for (var entry in style.scrollDurations.entries) {
-        if (offset >= entry.key) {
-          duration = entry.value;
-        } else {
-          break;
-        }
-      }
-    }
-    return duration;
-  }
-
   double calcActiveLineOffsetY() {
     final l = layout;
     if (l == null) {
@@ -82,6 +73,7 @@ mixin LyricScrollMixin<T extends StatefulWidget>
         controller.activeIndexNotifiter.value,
         l.activeAnchorPosition,
         style.activeAlignment);
+
     if (l.activeAnchorPosition < l.selectionAnchorPosition) {
       final lh = l.getLineHeight(true, controller.activeIndexNotifiter.value);
       final anchorOffset = l.anchorOffsetY(
@@ -101,39 +93,45 @@ mixin LyricScrollMixin<T extends StatefulWidget>
   /// 更新偏移Y值
   void updateScrollY({bool animate = true}) {
     final currentLayout = layout;
-    if (currentLayout != null) {
-      final target = dragScrollY ?? calcActiveLineOffsetY();
-      if (!animate) {
-        if (_scrollController.isAnimating) {
-          _scrollController.stop();
-        }
-        scrollY = target;
-        return;
-      }
+    if (currentLayout == null) return;
+
+    final target = dragScrollY ?? calcActiveLineOffsetY();
+
+    if (!animate) {
       if (_scrollController.isAnimating) {
         _scrollController.stop();
       }
-      final offset = (scrollY - target).abs();
-      if (offset < 0.1) {
-        scrollY = target;
-        return;
-      }
-      // 根据偏移量动态计算动画时长
-      final animationDuration = calculateAnimationDuration(offset);
-      _scrollController.duration = animationDuration;
-      if (animationDuration == Duration.zero) {
-        scrollY = target;
-        return;
-      }
-      final curvedAnimation = CurvedAnimation(
-        parent: _scrollController,
-        curve: style.scrollCurve,
-      );
-      _translationAnimation = Tween<double>(
-        begin: scrollY,
-        end: target,
-      ).animate(curvedAnimation);
-      _scrollController.forward(from: 0);
+      scrollY = target;
+      return;
+    }
+
+    if (_scrollController.isAnimating) {
+      _scrollController.stop();
+    }
+
+    final offset = (scrollY - target).abs();
+    if (offset < 0.1) {
+      scrollY = target;
+      return;
+    }
+
+    final ScrollBehaviorConfig? config = style.scrollBehavior;
+
+    // 【修改2】兜底逻辑：如果没有配置动画行为，直接赋值跳过动画
+    if (config == null) {
+      scrollY = target;
+      return;
+    }
+
+    _translationAnimation = config.applyAnimation(
+      controller: _scrollController,
+      begin: scrollY,
+      end: target,
+    );
+
+    // 如果动画策略判断不需要动画（例如计算出时长为0），则直接跳到终点
+    if (_translationAnimation is AlwaysStoppedAnimation) {
+      scrollY = target;
     }
   }
 
