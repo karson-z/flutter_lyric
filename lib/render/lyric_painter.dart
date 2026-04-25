@@ -188,14 +188,19 @@ class LyricPainter extends CustomPainter {
   }
 
   double handleSwitchAnimation(
-    Canvas canvas,
-    LineMetrics metric,
-    int index,
-    LyricLineSwitchState switchState,
-    TextPainter painter,
-    Size size,
-  ) {
+      Canvas canvas,
+      LineMetrics metric,
+      int index,
+      LyricLineSwitchState switchState,
+      TextPainter painter,
+      Size size,
+      ) {
     if (layout.style.enableSwitchAnimation != true) return 0;
+
+    //获取字号
+    final normalFontSize = layout.style.textStyle.fontSize ?? 16.0;
+    final activeFontSize = layout.style.activeStyle.fontSize ?? 18.0;
+
     double calcTranslateX(double contentWidth) {
       var transX = 0.0;
       if (layout.style.contentAlignment == CrossAxisAlignment.center) {
@@ -207,32 +212,39 @@ class LyricPainter extends CustomPainter {
     }
 
     final transX = calcTranslateX(painter.width);
+
+    // ENTER: 绘制的是大字 (activeTextPainter)，需要从小缩放到大
     if (index == switchState.enterIndex) {
       final enterAnimationValue = switchState.enterAnimationValue;
-      final fromHeight = metric.height;
-      final toHeight = metric.activeHeight;
-      final transY = toHeight;
+      final transY = metric.activeHeight;
+
       canvas.translate(transX, transY);
-      canvas.scale(
-          1 - ((toHeight - fromHeight) / toHeight) * (1 - enterAnimationValue));
+      // 使用字号比例：例如 16 / 24 = 0.66
+      final startScale = normalFontSize / activeFontSize;
+      // 从 startScale 平滑过渡到 1.0
+      final currentScale = startScale + (1.0 - startScale) * enterAnimationValue;
+      canvas.scale(currentScale);
       canvas.translate(-transX, -transY);
     }
-    // EXIT
+
+    // EXIT: 绘制的是小字 (textPainter)，需要从大缩放到小
     if (index == switchState.exitIndex) {
       final exitAnimationValue = switchState.exitAnimationValue;
-      final fromHeight = metric.activeHeight;
-      final toHeight = metric.height;
       final transY = 0.0;
+
       canvas.translate(transX, transY);
-      final scale =
-          ((fromHeight - toHeight) / fromHeight) * (1 - exitAnimationValue);
-      canvas.scale(1 + scale);
+      // 使用字号逆比例：例如 24 / 16 = 1.5
+      final startScale = activeFontSize / normalFontSize;
+      // 从 startScale 平滑缩小到 1.0
+      final currentScale = 1.0 + (startScale - 1.0) * (1.0 - exitAnimationValue);
+      canvas.scale(currentScale);
       canvas.translate(-transX, -transY);
-      return toHeight * scale;
+
+      // 返回 Y 轴补偿偏移，防止因为缩小导致下方的行产生间隙
+      return metric.height * (currentScale - 1.0);
     }
     return 0;
   }
-
   Color _resolveColor(TextStyle baseStyle, Color selectColor, bool isSelecting,
       bool isInAnchorArea, Color? customColor) {
     if (isSelecting && isInAnchorArea) return selectColor;
@@ -240,12 +252,12 @@ class LyricPainter extends CustomPainter {
   }
 
   drawLine(
-    Canvas canvas,
-    LineMetrics metric,
-    Size size,
-    int index,
-    bool isInAnchorArea,
-  ) {
+      Canvas canvas,
+      LineMetrics metric,
+      Size size,
+      int index,
+      bool isInAnchorArea,
+      ) {
     final isActive = playIndex == index;
     final layoutStyle = layout.style;
 
@@ -254,6 +266,8 @@ class LyricPainter extends CustomPainter {
 
     double highlightOpacity = 1.0;
     Color? animatedMainColor;
+
+    // 仅主歌词参与颜色切换动画
     if (style.enableSwitchAnimation) {
       final normalColor = layoutStyle.textStyle.color;
       final activeColor = layoutStyle.activeStyle.color;
@@ -289,12 +303,16 @@ class LyricPainter extends CustomPainter {
                 ? Colors.blue.withAlpha(50)
                 : Colors.red.withAlpha(50));
     }
+
+    // 执行基于字号的缩放
     final switchOffset = handleSwitchAnimation(
         canvas, metric, index, switchState, painter, size);
     painter.paint(canvas, Offset.zero);
+
     if (needsRestyle) {
       painter.text = oldSpan;
     }
+
     if (isActive) {
       drawHighlight(canvas, size, metric.activeMetrics,
           highlightTotalWidth: metric.words?.isNotEmpty == true
@@ -309,36 +327,24 @@ class LyricPainter extends CustomPainter {
           animationOpacity: highlightOpacity);
     }
     canvas.restore();
-    final mainHeight = isActive ? metric.activeHeight : metric.height;
+
+    // =============== 翻译行绘制（无动画版本） ===============
     if (metric.line.translation?.isNotEmpty == true) {
       final tPainter = metric.translationTextPainter;
       final tOldSpan = tPainter.text! as TextSpan;
 
-      Color? animatedTranslationColor;
-      if (style.enableSwitchAnimation) {
-        final normalTransColor =
-            tOldSpan.style!.color ?? layoutStyle.translationStyle.color;
-        final activeTransColor =
-            layoutStyle.translationActiveColor ?? normalTransColor;
-
-        if (index == switchState.enterIndex) {
-          animatedTranslationColor = Color.lerp(normalTransColor,
-              activeTransColor, switchState.enterAnimationValue);
-        } else if (index == switchState.exitIndex) {
-          animatedTranslationColor = Color.lerp(activeTransColor,
-              normalTransColor, switchState.exitAnimationValue);
-        }
-      }
-
+      // 翻译行直接使用状态色，不参与任何 lerp 动画
       final tBaseColor = isActive
           ? (layoutStyle.translationActiveColor ?? tOldSpan.style!.color)
           : tOldSpan.style!.color;
+
       final tTargetColor = _resolveColor(
           tOldSpan.style!.copyWith(color: tBaseColor),
           layoutStyle.selectedTranslationColor,
           isSelecting,
           isInAnchorArea,
-          animatedTranslationColor);
+          null); // 无动画颜色
+
       final tNeedsRestyle = tTargetColor != tOldSpan.style!.color;
 
       if (tNeedsRestyle) {
@@ -347,17 +353,20 @@ class LyricPainter extends CustomPainter {
           style: tOldSpan.style!.copyWith(color: tTargetColor),
         );
       }
+
       canvas.save();
       canvas.translate(calcContentAliginOffset(tPainter.width, size.width), 0);
+
+      // 保留 switchOffset 用于 Y 轴布局补偿
       canvas.translate(0, switchOffset);
       try {
+        final mainHeight = isActive ? metric.activeHeight : metric.height;
         tPainter.paint(
           canvas,
           Offset(0, mainHeight + layoutStyle.translationLineGap),
         );
-      } catch (_) {
-        // 避免系统字体变更触发 assert(debugSize == size);
-      }
+      } catch (_) {}
+
       if (tNeedsRestyle) {
         tPainter.text = tOldSpan;
       }
